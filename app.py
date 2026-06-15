@@ -3,18 +3,16 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://{}:{}@{}/{}'.format(
-    os.getenv('DB_USER', 'root'),
-    os.getenv('DB_PASSWORD', '12345'),
+    os.getenv('DB_USER', 'flask'),
+    os.getenv('DB_PASSWORD', 'change-me'),
     os.getenv('DB_HOST', 'mysql'),
     os.getenv('DB_NAME', 'flask')
 )
 db = SQLAlchemy(app)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Run server:
-# First method: python app.py (app.run needs to be included, like the if statement below)
-# Second method: flask run (after exporting 2 env variables:
-# export FLASK_ENV=development, export FLASK_APP=app.py)
+# Run locally with: python app.py
+# Run with Docker Compose using the environment variables in docker-compose.yml.
 class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100))
@@ -23,6 +21,8 @@ class Todo(db.Model):
 # create the DB on demand
 @app.before_first_request
 def create_tables():
+    if app.config.get("TESTING"):
+        return
     db.create_all()
 
 @app.route('/', methods=["GET"])
@@ -30,6 +30,10 @@ def index():
     print("index")
     t = Todo.query.all()
     return render_template("index.html", list_todo=t)
+
+@app.route('/health', methods=["GET"])
+def health():
+    return {"status": "ok"}, 200
 
 @app.route('/add', methods=["POST"])
 def add():
