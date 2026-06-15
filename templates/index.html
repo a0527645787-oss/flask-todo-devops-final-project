@@ -34,7 +34,7 @@
                 {% endfor %}
             </div>
 
-            <a class="button" href="#">Choose seats</a>
+            <a class="button" href="{{ url_for('match_detail', match_id=match.id) }}">Choose seats</a>
         </article>
     {% endfor %}
 </section>

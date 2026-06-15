@@ -1,7 +1,7 @@
 from datetime import datetime
 from functools import wraps
 from uuid import uuid4
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import abort, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 import os
 app = Flask(__name__)
@@ -169,6 +169,65 @@ def index():
 @app.route('/health', methods=["GET"])
 def health():
     return {"status": "ok"}, 200
+
+
+@app.route('/matches/<int:match_id>', methods=["GET"])
+def match_detail(match_id):
+    match = Match.query.get_or_404(match_id)
+    return render_template("match_detail.html", match=match)
+
+
+@app.route('/matches/<int:match_id>/book', methods=["POST"])
+def book_match(match_id):
+    match = Match.query.get_or_404(match_id)
+    customer_name = request.form.get("customer_name", "").strip()
+    customer_email = request.form.get("customer_email", "").strip()
+    seat_type_id = request.form.get("seat_type_id", type=int)
+    seats_count = request.form.get("seats_count", type=int)
+
+    selected_seat_type = SeatType.query.filter_by(
+        id=seat_type_id,
+        match_id=match.id,
+    ).first()
+
+    error = None
+    if not customer_name or not customer_email:
+        error = "Please enter your name and email."
+    elif selected_seat_type is None:
+        error = "Please choose a valid seat type for this match."
+    elif seats_count is None or seats_count <= 0:
+        error = "Please choose at least one seat."
+    elif selected_seat_type.available_seats < seats_count:
+        error = "Not enough seats are available for this seat type."
+
+    if error:
+        return render_template("match_detail.html", match=match, error=error), 400
+
+    booking = Booking(
+        customer_name=customer_name,
+        customer_email=customer_email,
+        seats_count=seats_count,
+        match=match,
+        seat_type=selected_seat_type,
+    )
+    db.session.add(booking)
+    db.session.commit()
+
+    return redirect(url_for("booking_success", booking_code=booking.booking_code))
+
+
+@app.route('/bookings/<booking_code>', methods=["GET"])
+def booking_success(booking_code):
+    booking = Booking.query.filter_by(booking_code=booking_code).first()
+    if booking is None:
+        abort(404)
+
+    total_price = booking.seats_count * booking.seat_type.price
+    return render_template(
+        "booking_success.html",
+        booking=booking,
+        total_price=total_price,
+    )
 
 
 @app.route('/admin/login', methods=["GET", "POST"])

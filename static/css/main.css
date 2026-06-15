@@ -211,16 +211,20 @@ p {
     width: min(440px, 100%);
 }
 
-.admin-form {
+.admin-form,
+.booking-form {
     display: grid;
     gap: 12px;
 }
 
-.admin-form label {
+.admin-form label,
+.booking-form label {
     font-weight: 800;
 }
 
-.admin-form input {
+.admin-form input,
+.booking-form input,
+.booking-form select {
     min-height: 44px;
     padding: 10px 12px;
     border: 1px solid var(--line);
@@ -264,6 +268,43 @@ th {
     text-align: center;
 }
 
+.detail-panel {
+    margin-bottom: 24px;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    gap: 28px;
+    margin-top: 24px;
+}
+
+.detail-seat-list {
+    margin-bottom: 0;
+}
+
+.booking-form {
+    align-self: start;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(246, 249, 247, 0.84);
+}
+
+.booking-form .button {
+    width: 100%;
+}
+
+.summary-list {
+    display: grid;
+    gap: 8px;
+    margin: 22px 0;
+}
+
+.summary-list p {
+    margin: 0;
+}
+
 @media (max-width: 640px) {
     .site-header,
     .match-card-header,
@@ -274,5 +315,9 @@ th {
 
     .site-header {
         margin-bottom: 48px;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr;
     }
 }

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ match.home_team }} vs {{ match.away_team }}{% endblock %}
+
+{% block content %}
+<section class="panel detail-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Match details</p>
+            <h1>{{ match.home_team }} vs {{ match.away_team }}</h1>
+        </div>
+        <a class="button secondary-button" href="{{ url_for('index') }}">Back to matches</a>
+    </div>
+
+    <div class="detail-grid">
+        <div>
+            <h2>Match</h2>
+            <p><strong>Date:</strong> {{ match.match_date.strftime("%d %b %Y, %H:%M") }}</p>
+            <p><strong>Stadium:</strong> {{ match.stadium.name }}</p>
+            <p><strong>City:</strong> {{ match.stadium.city }}</p>
+            <p><strong>Capacity:</strong> {{ "{:,}".format(match.stadium.capacity) }}</p>
+
+            <div class="seat-list detail-seat-list">
+                {% for seat_type in match.seat_types %}
+                    <div class="seat-row">
+                        <div>
+                            <strong>{{ seat_type.name }}</strong>
+                            <span>{{ seat_type.available_seats }} seats available</span>
+                        </div>
+                        <span class="seat-price">${{ "%.0f"|format(seat_type.price) }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <form class="booking-form" method="post" action="{{ url_for('book_match', match_id=match.id) }}">
+            <h2>Book seats</h2>
+
+            {% if error %}
+                <p class="error-message">{{ error }}</p>
+            {% endif %}
+
+            <label for="customer_name">Full name</label>
+            <input id="customer_name" name="customer_name" type="text" required>
+
+            <label for="customer_email">Email</label>
+            <input id="customer_email" name="customer_email" type="email" required>
+
+            <label for="seat_type_id">Seat type</label>
+            <select id="seat_type_id" name="seat_type_id" required>
+                {% for seat_type in match.seat_types %}
+                    <option value="{{ seat_type.id }}">
+                        {{ seat_type.name }} - ${{ "%.0f"|format(seat_type.price) }} - {{ seat_type.available_seats }} available
+                    </option>
+                {% endfor %}
+            </select>
+
+            <label for="seats_count">Number of seats</label>
+            <input id="seats_count" name="seats_count" type="number" min="1" value="1" required>
+
+            <button class="button" type="submit">Confirm booking</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

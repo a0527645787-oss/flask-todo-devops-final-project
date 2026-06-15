@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Booking confirmed{% endblock %}
+
+{% block content %}
+<section class="panel narrow-panel">
+    <p class="eyebrow">Booking confirmed</p>
+    <h1>Your seats are booked</h1>
+
+    <div class="summary-list">
+        <p><strong>Booking code:</strong> {{ booking.booking_code }}</p>
+        <p><strong>Customer:</strong> {{ booking.customer_name }}</p>
+        <p><strong>Match:</strong> {{ booking.match.home_team }} vs {{ booking.match.away_team }}</p>
+        <p><strong>Stadium:</strong> {{ booking.match.stadium.name }}, {{ booking.match.stadium.city }}</p>
+        <p><strong>Seat type:</strong> {{ booking.seat_type.name }}</p>
+        <p><strong>Seats:</strong> {{ booking.seats_count }}</p>
+        <p><strong>Price per seat:</strong> ${{ "%.0f"|format(booking.seat_type.price) }}</p>
+        <p><strong>Total price:</strong> ${{ "%.0f"|format(total_price) }}</p>
+    </div>
+
+    <a class="button" href="{{ url_for('index') }}">Back to matches</a>
+</section>
+{% endblock %}
