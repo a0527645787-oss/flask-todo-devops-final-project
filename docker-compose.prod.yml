@@ -33,7 +33,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-flask}
       MYSQL_USER: ${DB_USER:-flask}
       MYSQL_PASSWORD: ${DB_PASSWORD:-change-me}
-      ports:    
+    ports:
       - "3307:3306"
     volumes:
       # Keep MySQL data even if the container is recreated.
