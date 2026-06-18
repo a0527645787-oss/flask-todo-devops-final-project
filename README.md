@@ -262,8 +262,9 @@ active booked seats = bookings where is_cancelled == False
 קובץ `.env.example` נשמר ב-Git כדוגמה בטוחה:
 
 ```env
-ADMIN_PASSWORD=admin123
-SECRET_KEY=dev-secret-key
+APP_ENV=development
+ADMIN_PASSWORD=replace-with-a-strong-admin-password
+SECRET_KEY=replace-with-a-long-random-secret-key
 DB_USER=flask
 DB_PASSWORD=change-me
 DB_NAME=flask

@@ -5,7 +5,7 @@ import pytest
 
 os.environ["TESTING"] = "true"
 
-from app import Booking, Match, SeatType, Stadium, app, db
+from app import ADMIN_PASSWORD, Booking, Match, SeatType, Stadium, app, db
 
 
 @pytest.fixture()
@@ -137,3 +137,44 @@ def test_admin_bookings_page_renders_statistics(client):
     assert response.status_code == 200
     assert b"Match statistics" in response.data
     assert b"Active booked seats" in response.data
+
+
+def test_admin_bookings_redirects_when_not_logged_in(client):
+    response = client.get("/admin/bookings")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin/login")
+
+
+def test_admin_login_rejects_invalid_password(client):
+    response = client.post("/admin/login", data={"password": "wrong-password"})
+
+    assert response.status_code == 200
+    assert b"Invalid admin password" in response.data
+
+    with client.session_transaction() as sess:
+        assert not sess.get("admin_logged_in")
+
+
+def test_admin_login_accepts_configured_password(client):
+    response = client.post("/admin/login", data={"password": ADMIN_PASSWORD})
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin/bookings")
+
+    with client.session_transaction() as sess:
+        assert sess["admin_logged_in"] is True
+        assert sess.permanent is True
+
+
+def test_admin_logout_clears_session(client):
+    with client.session_transaction() as sess:
+        sess["admin_logged_in"] = True
+        sess["other_value"] = "remove-me"
+
+    response = client.get("/admin/logout")
+
+    assert response.status_code == 302
+    with client.session_transaction() as sess:
+        assert "admin_logged_in" not in sess
+        assert "other_value" not in sess

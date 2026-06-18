@@ -1,12 +1,41 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
+from hmac import compare_digest
 from uuid import uuid4
 from flask import Flask, abort, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 import os
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+IS_PRODUCTION = APP_ENV == "production"
 app.config["TESTING"] = os.getenv("TESTING", "").lower() == "true"
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=IS_PRODUCTION,
+)
+
+
+def get_config_value(name, testing_default, development_default, unsafe_value=None):
+    value = os.getenv(name)
+    if app.config["TESTING"]:
+        return value or testing_default
+    if IS_PRODUCTION:
+        if not value:
+            raise RuntimeError(f"{name} must be set when APP_ENV=production")
+        if unsafe_value is not None and value == unsafe_value:
+            raise RuntimeError(f"{name} must not use the unsafe development value in production")
+        return value
+    return value or development_default
+
+
+app.secret_key = get_config_value(
+    "SECRET_KEY",
+    testing_default="test-secret-key",
+    development_default="dev-secret-key",
+    unsafe_value="dev-secret-key",
+)
 if app.config["TESTING"]:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///:memory:"
 else:
@@ -18,7 +47,12 @@ else:
     )
 db = SQLAlchemy(app)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = get_config_value(
+    "ADMIN_PASSWORD",
+    testing_default="test-admin-password",
+    development_default="admin123",
+    unsafe_value="admin123",
+)
 
 class Stadium(db.Model):
     __tablename__ = "stadiums"
@@ -302,7 +336,9 @@ def admin_login():
     error = None
     if request.method == "POST":
         password = request.form.get("password", "")
-        if password == ADMIN_PASSWORD:
+        if compare_digest(password, ADMIN_PASSWORD):
+            session.clear()
+            session.permanent = True
             session["admin_logged_in"] = True
             return redirect(url_for("admin_bookings"))
         error = "Invalid admin password"
@@ -312,7 +348,7 @@ def admin_login():
 
 @app.route('/admin/logout', methods=["GET"])
 def admin_logout():
-    session.pop("admin_logged_in", None)
+    session.clear()
     return redirect(url_for("index"))
 
 

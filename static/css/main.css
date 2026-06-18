@@ -242,6 +242,34 @@ p {
     font-size: 1rem;
 }
 
+.password-field {
+    display: flex;
+    align-items: stretch;
+}
+
+.password-field input {
+    min-width: 0;
+    flex: 1;
+    border-radius: 8px 0 0 8px;
+}
+
+.password-toggle {
+    min-width: 76px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 8px 8px 0;
+    background: #f6f9f7;
+    color: var(--accent-dark);
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.password-toggle:hover,
+.password-toggle:focus {
+    background: #e7f5ec;
+}
+
 .error-message {
     padding: 10px 12px;
     border-radius: 8px;
