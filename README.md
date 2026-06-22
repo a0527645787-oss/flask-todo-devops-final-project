@@ -346,35 +346,66 @@ SQLite משמש רק לבדיקות מהירות ומבודדות, כדי שלא
 shlomodevops/devops-final-projectshlomo
 ```
 
-### Docker image tags and rollback
+### Production Image Versioning
 
-Docker image tags are labels that point to a specific built image in Docker Hub.
-This project publishes two tags for each successful build:
+Docker image tags are labels for Docker images in Docker Hub. They let the server choose which version of the application to run.
 
-- `latest` - points to the newest image built from `main`.
-- short commit SHA, for example `abc1234` - points to the image built from that exact commit.
-
-By default, production uses:
-
-```env
-IMAGE_TAG=latest
-```
-
-That means `docker-compose.prod.yml` runs:
+This project pushes images to:
 
 ```text
-shlomodevops/devops-final-projectshlomo:latest
+shlomodevops/devops-final-projectshlomo
 ```
 
-To roll back, set `IMAGE_TAG` on the EC2 server to a previous short SHA tag in the server `.env` file, then recreate the app container:
+Each successful build from `main` creates two tags:
+
+- `latest` - a moving tag that points to the newest image built from `main`.
+- a 7-character commit SHA tag, for example `abc1234` - a fixed tag that points to the image built from one exact Git commit.
+
+Using the commit SHA tag is safer than relying only on `latest` because it makes production predictable. `latest` can change every time a new build is pushed, but a commit SHA tag keeps pointing to the same image. This makes deployments easier to audit and rollbacks much clearer.
+
+The production Compose file uses `IMAGE_TAG`:
+
+```text
+image: shlomodevops/devops-final-projectshlomo:${IMAGE_TAG:-latest}
+```
+
+If `IMAGE_TAG` is missing, Docker Compose falls back to `latest`. During automated deployment, GitHub Actions updates the EC2 `.env` file to use the exact short SHA tag that was just built.
+
+### Rollback Procedure
+
+Rollback means running a previous working Docker image instead of the newest one.
+
+1. Choose a previous working Docker image tag from Docker Hub or Git history.
+2. SSH into the EC2 server.
+3. Edit `.env` and set `IMAGE_TAG` to the previous tag:
+
+```env
+IMAGE_TAG=abc1234
+```
+
+4. Pull and restart the production stack:
 
 ```bash
-IMAGE_TAG=abc1234
-docker compose -f docker-compose.prod.yml pull app
-docker compose -f docker-compose.prod.yml up -d --force-recreate app
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+curl http://localhost/health
 ```
 
-Use the real previous tag from Docker Hub or from the GitHub Actions build output.
+Use the real previous tag instead of `abc1234`.
+
+### How to verify what version is running
+
+On the EC2 server, check the tag selected in `.env`:
+
+```bash
+grep IMAGE_TAG .env
+```
+
+Then check the image used by the running Flask container:
+
+```bash
+docker inspect flask_app_prod --format='{{.Config.Image}}'
+```
 
 MySQL בתוך ה-container משתמש בפורט `3306`.
 
@@ -382,20 +413,42 @@ MySQL בתוך ה-container משתמש בפורט `3306`.
 
 ## CI/CD Pipeline
 
-הזרימה הנוכחית ב-GitHub Actions:
+### CI/CD Flow
 
 ```text
-Push to main
--> checkout code
--> setup Python
--> install dependencies
--> run pytest
--> build Docker image
--> login to Docker Hub using GitHub Secrets
--> push Docker image
--> connect to EC2 with SSH using GitHub Secrets
--> pull the latest image and restart Docker Compose
--> verify /health through Nginx
+Developer -> GitHub -> GitHub Actions -> Tests -> Docker Build -> Docker Hub -> EC2 -> Docker Compose -> Health Check
+```
+
+On every push to `main`, GitHub Actions runs the CI/CD workflow:
+
+1. Checks out the code.
+2. Sets up Python.
+3. Installs dependencies from `requirements.txt`.
+4. Runs tests with `pytest`.
+5. Builds the Docker image.
+6. Logs in to Docker Hub using GitHub Secrets.
+7. Pushes two Docker image tags:
+   - `latest`
+   - the 7-character short commit SHA tag
+8. Connects to the EC2 server over SSH.
+9. Runs `git pull origin main` in `~/seat-booking-devops`.
+10. Updates the EC2 `.env` file with:
+
+```env
+IMAGE_TAG=<short-sha>
+```
+
+11. Pulls and starts the production Docker Compose stack:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+12. Verifies the deployment with:
+
+```text
+http://localhost/health
 ```
 
 התחברות ל-Docker Hub נעשית עם GitHub Secrets:
@@ -412,8 +465,8 @@ After the Docker image is pushed successfully, the deploy job connects to the EC
 - `EC2_USER`
 - `EC2_SSH_KEY`
 
-On EC2, the deployment runs from `~/seat-booking-devops`, pulls the latest `main` branch, pulls the latest Docker image from Docker Hub, and restarts the production Docker Compose stack.
-Docker Compose restarts Nginx, Gunicorn/Flask, and MySQL, then the workflow checks `http://localhost/health`.
+On EC2, the deployment runs from `~/seat-booking-devops`, pulls the latest `main` branch, updates `IMAGE_TAG` in the server `.env` file, pulls the selected Docker images from Docker Hub, and restarts the production Docker Compose stack.
+Docker Compose restarts Nginx, Gunicorn/Flask, MySQL, Prometheus, and Grafana, then the workflow checks `http://localhost/health`.
 
 The server `.env` file stays only on EC2. It is not committed to Git and should not be copied into GitHub Actions.
 

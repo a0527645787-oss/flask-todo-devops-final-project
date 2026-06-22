@@ -1,4 +1,4 @@
-name: Flask TODO CI
+name: World Cup Seat Booking CI/CD
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
 
       # Build the Flask Docker image to verify the Dockerfile works.
       - name: Build Docker image
-        run: docker build -t flask-todo-app:ci .
+        run: docker build -t seat-booking-app:ci .
 
       # Store a short commit SHA for a readable, rollback-friendly image tag.
       - name: Set Docker image tag
@@ -57,8 +57,8 @@ jobs:
       # Tag the verified image with latest and the short commit SHA.
       - name: Tag Docker image
         run: |
-          docker tag flask-todo-app:ci shlomodevops/devops-final-projectshlomo:latest
-          docker tag flask-todo-app:ci shlomodevops/devops-final-projectshlomo:${SHORT_SHA}
+          docker tag seat-booking-app:ci shlomodevops/devops-final-projectshlomo:latest
+          docker tag seat-booking-app:ci shlomodevops/devops-final-projectshlomo:${SHORT_SHA}
 
       # Push both tags to Docker Hub.
       - name: Push Docker image
@@ -83,29 +83,95 @@ jobs:
           script_stop: true
           script: |
             cd ~/seat-booking-devops
+
+            echo "Current server commit before pull:"
+            git rev-parse --short HEAD
+
             git pull origin main
+
             IMAGE_TAG="${{ needs.test.outputs.short_sha }}"
-            if [ -f .env ] && grep -q '^IMAGE_TAG=' .env; then
+            echo "NEW_IMAGE_TAG=${IMAGE_TAG}"
+
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file is missing on EC2. Production secrets are expected to exist on the server."
+              exit 1
+            fi
+
+            if grep -q '^IMAGE_TAG=' .env; then
+              PREVIOUS_IMAGE_TAG="$(grep '^IMAGE_TAG=' .env | tail -n 1 | cut -d '=' -f 2-)"
+            else
+              PREVIOUS_IMAGE_TAG="latest"
+            fi
+
+            echo "Previous IMAGE_TAG from .env: ${PREVIOUS_IMAGE_TAG}"
+            printf "%s\n" "$PREVIOUS_IMAGE_TAG" > .previous_image_tag
+
+            if grep -q '^IMAGE_TAG=' .env; then
               sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" .env
             else
               printf "\nIMAGE_TAG=%s\n" "$IMAGE_TAG" >> .env
             fi
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
-            docker image prune -f
+
+            echo ".env IMAGE_TAG after update:"
+            grep '^IMAGE_TAG=' .env
+
+            echo "Docker Compose resolved app image:"
+            docker compose --env-file .env -f docker-compose.prod.yml config | grep 'image: shlomodevops/devops-final-projectshlomo:'
+
+            docker compose --env-file .env -f docker-compose.prod.yml pull app
+            docker compose --env-file .env -f docker-compose.prod.yml up -d
+
+            echo "Docker Compose status after deploy:"
+            docker compose --env-file .env -f docker-compose.prod.yml ps
+
+            RUNNING_IMAGE="$(docker inspect flask_app_prod --format='{{.Config.Image}}')"
+            echo "Running Docker image after deploy: ${RUNNING_IMAGE}"
+
             set +e
 
             for i in $(seq 1 12); do
               if curl -fsS http://localhost/health; then
-                echo "Health check passed"
+                echo "Deployment health check passed"
+                echo "Running IMAGE_TAG=${IMAGE_TAG}"
+                docker image prune -f
                 exit 0
               fi
               echo "Health check failed, retrying attempt $i..."
               sleep 5
             done
 
-            echo "Health check failed after retries"
-            docker ps
-            docker logs --tail=80 flask_app_prod
+            echo "Health check failed after deploying IMAGE_TAG=${IMAGE_TAG}"
+            echo "Rolling back to previous IMAGE_TAG=${PREVIOUS_IMAGE_TAG}"
+
+            if grep -q '^IMAGE_TAG=' .env; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${PREVIOUS_IMAGE_TAG}/" .env
+            else
+              printf "\nIMAGE_TAG=%s\n" "$PREVIOUS_IMAGE_TAG" >> .env
+            fi
+
+            echo ".env IMAGE_TAG after rollback update:"
+            grep '^IMAGE_TAG=' .env
+
+            docker compose --env-file .env -f docker-compose.prod.yml pull app
+            docker compose --env-file .env -f docker-compose.prod.yml up -d
+
+            echo "Docker Compose status after rollback:"
+            docker compose --env-file .env -f docker-compose.prod.yml ps
+
+            ROLLBACK_IMAGE="$(docker inspect flask_app_prod --format='{{.Config.Image}}')"
+            echo "Running Docker image after rollback: ${ROLLBACK_IMAGE}"
+
+            for i in $(seq 1 12); do
+              if curl -fsS http://localhost/health; then
+                echo "Rollback succeeded"
+                exit 1
+              fi
+              echo "Rollback health check failed, retrying attempt $i..."
+              sleep 5
+            done
+
+            echo "Rollback failed. Manual intervention required."
+            docker compose --env-file .env -f docker-compose.prod.yml ps
+            docker logs --tail=120 flask_app_prod
             docker logs --tail=80 nginx_proxy_prod
             exit 1
