@@ -5,19 +5,22 @@
 {% block content %}
 <section class="hero tournament-hero">
     <div class="tournament-branding">
-        {# Logo downloaded from the user-provided source URL. #}
         <img class="tournament-logo" src="{{ url_for('static', filename='images/world-cup-2026-logo.png') }}" alt="World Cup 2026 tournament mark">
         <div>
-            <p class="eyebrow">World Cup 2026 Seat Booking</p>
-            <h1>Fixtures in match order</h1>
+            <p class="eyebrow">World Cup 2026 inspired demo</p>
+            <h1>Choose Your Seats for the World's Biggest Football Celebration</h1>
         </div>
     </div>
     <p class="hero-text">
-        Browse the tournament schedule in chronological order. Knockout fixtures keep official-style placeholders until teams are known.
+        Browse upcoming matches, explore seating options, and enjoy a stylish demo booking journey inspired by the 2026 tournament.
     </p>
+    <div class="hero-actions" aria-label="Booking highlights">
+        <a class="button hero-button" href="#fixtures">Explore matches</a>
+        <span>Friendly demo experience</span>
+    </div>
 </section>
 
-<section class="fixture-list" aria-label="World Cup 2026 fixtures">
+<section id="fixtures" class="fixture-list" aria-label="World Cup 2026 fixtures">
     {% for match in matches %}
         <article class="match-card match-card-wide">
             <div class="fixture-time">
